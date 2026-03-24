@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` DROP FOREIGN KEY `sessions_user_id_users_id_fk`;

@@ -8,6 +8,20 @@
       "when": 1774317581839,
       "tag": "0000_brave_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1774319608400,
+      "tag": "0001_small_vin_gonzales",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774319646121,
+      "tag": "0002_quick_amazoness",
+      "breakpoints": true
     }
   ]
 }
