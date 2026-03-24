@@ -1,9 +1,9 @@
 import { Elysia } from 'elysia';
-import { registerUserHandler } from './routes/users-route';
+import { usersRoute } from './routes/users-route';
 
 const app = new Elysia()
+  .use(usersRoute)
   .get('/', () => 'Hello World!')
-  .post('/api/users', registerUserHandler)
   .listen(Number(process.env.PORT) || 3000);
 
 console.log(`Server running at http://localhost:${app.server?.port}`);
