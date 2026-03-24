@@ -1,6 +1,13 @@
 import { Elysia, t } from 'elysia';
 import { registerUser, loginUser, getCurrentUser, logoutUser } from '../services/users-service';
 
+function extractToken(authHeader: string | undefined): string | null {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  return authHeader.substring(7);
+}
+
 export const usersRoute = new Elysia()
   .post('/api/users', async ({ body }) => {
     const { name, email, password } = body;
@@ -40,13 +47,11 @@ export const usersRoute = new Elysia()
     })
   })
   .get('/api/users/me', async ({ headers }) => {
-    const authHeader = headers.authorization;
+    const token = extractToken(headers.authorization);
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       return { error: 'Unauthorized' };
     }
-    
-    const token = authHeader.substring(7);
     
     try {
       const result = await getCurrentUser(token);
@@ -59,13 +64,11 @@ export const usersRoute = new Elysia()
     }
   })
   .delete('/api/users/logout', async ({ headers }) => {
-    const authHeader = headers.authorization;
+    const token = extractToken(headers.authorization);
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       return { error: 'Unauthorized' };
     }
-    
-    const token = authHeader.substring(7);
     
     try {
       const result = await logoutUser(token);
