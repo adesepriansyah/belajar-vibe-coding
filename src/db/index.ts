@@ -10,4 +10,4 @@ const connection = await mysql.createPool({
   port: Number(process.env.DB_PORT),
 });
 
-export const db = drizzle(connection, { schema });
+export const db = drizzle(connection, { schema, mode: 'default' });
