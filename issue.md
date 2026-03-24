@@ -1,55 +1,42 @@
-# Issue: User Login API
+# Issue: Get Current User API
 
 ## Deskripsi
-Membuat fitur login user dengan menghasilkan token sesi menggunakan UUID.
+Membuat API untuk mendapatkan data user yang sedang login berdasarkan token di Authorization header.
 
 ---
 
 ## Spesifikasi
 
-### Database - Tabel Sessions
-
-Buat tabel `sessions` dengan struktur berikut:
-
-| Kolom      | Tipe          | Constraint                                   |
-|------------|---------------|----------------------------------------------|
-| id         | INTEGER       | AUTO INCREMENT, PRIMARY KEY                 |
-| token      | VARCHAR(255)  | NOT NULL                                     |
-| userId     | INTEGER       | NOT NULL, FK ke tabel users (id)            |
-| createdAt  | TIMESTAMP     | DEFAULT CURRENT_TIMESTAMP                   |
-
-**Catatan**: 
-- `token` menggunakan UUID yang di-generate saat login
-- Setiap login akan membuat token baru (tidak menggunakan session token yang sama)
-
----
-
 ### API Endpoint
 
-**Endpoint**: `POST /api/users/login`
+**Endpoint**: `GET /api/users/me`
 
-**Request Body**:
-```json
-{
-  "email": "ade@gmail.com",
-  "password": "rahasia"
-}
+**Headers**:
+```
+Authorization: Bearer <token>
 ```
 
-**Catatan**: Request body hanya butuh `email` dan `password` (tidak perlu `name`)
+**Catatan**: 
+- Token adalah UUID yang tersimpan di tabel `sessions`
+- Format header harus menggunakan prefix `Bearer ` (dengan spasi setelah Bearer)
+- Token didapatkan dari response login: `{"data":"<uuid-token>"}`
 
 **Response Success** (HTTP 200):
 ```json
 {
-  "data": "Token"
+  "data": {
+    "id": 1,
+    "name": "ade",
+    "email": "ade@gmail.com",
+    "created_at": "2024-01-15 10:30:00"
+  }
 }
 ```
-Contoh response: `{"data":"550e8400-e29b-41d4-a716-446655440000"}`
 
-**Response Error** - Email atau password salah (HTTP 401):
+**Response Error** - Token tidak valid/tidak ditemukan (HTTP 401):
 ```json
 {
-  "error": "Email atau password salah"
+  "error": "Unauthorized"
 }
 ```
 
@@ -65,164 +52,153 @@ src/
     └── users-service.ts
 ```
 
-**Catatan**: File `users-route.ts` dan `users-service.ts` sudah ada dari fitur sebelumnya. Tambahkan function baru, jangan overwrite file yang sudah ada.
+**Catatan**: File `users-route.ts` dan `users-service.ts` sudah ada. Tambahkan function baru, jangan overwrite file yang sudah ada.
 
 ---
 
 ## Tahapan Implementasi
 
-### Tahap 1: Setup Database
-
-1. **Tambahkan kolom sessions ke schema**
-   - Buka file `src/db/schema.ts`
-   - Import `mysqlTable`, `serial`, `varchar`, `timestamp`, `sql` dari `drizzle-orm/mysql-core`
-   - Import `users` dari file yang sama
-   
-2. **Definisikan tabel sessions**
-   ```ts
-   export const sessions = mysqlTable('sessions', {
-     id: serial('id').primaryKey(),
-     token: varchar('token', { length: 255 }).notNull(),
-     userId: integer('user_id').notNull().references(() => users.id),
-     createdAt: timestamp('created_at').default(sql`CURRENT_TIMESTAMP`),
-   });
-   ```
-
-3. **Generate dan push migration**
-   ```bash
-   bun run db:generate
-   bun run db:push
-   ```
-
----
-
-### Tahap 2: Update Service Layer
+### Tahap 1: Update Service Layer
 
 1. **Buka file `src/services/users-service.ts`**
    
 2. **Import module yang dibutuhkan**
    ```ts
-   import { db } from '../db';
-   import { sessions } from '../db/schema';
-   import crypto from 'crypto';
+   import { eq } from 'drizzle-orm';
+   import { sessions, users } from '../db/schema';
    ```
 
-3. **Buat fungsi loginUser**
-   - Terima parameter: `email`, `password`
-   - Cari user berdasarkan email
-   - Jika tidak ditemukan, return error "Email atau password salah"
-   - Bandingkan password dengan hash yang tersimpan di database menggunakan `bcrypt.compare()`
-   - Jika tidak cocok, return error "Email atau password salah"
-   - Jika cocok, generate UUID menggunakan `crypto.randomUUID()`
-   - Insert token ke tabel sessions dengan userId
-   - Return token
+3. **Buat fungsi getCurrentUser**
+   - Terima parameter: `token` (string)
+   - Cari session di tabel `sessions` berdasarkan token
+   - Jika tidak ditemukan, throw error "Unauthorized"
+   - Jika ditemukan, ambil user berdasarkan `userId` dari session
+   - Return data user (id, name, email, createdAt)
 
 4. **Contoh struktur fungsi**:
    ```ts
-   import bcrypt from 'bcrypt';
-   import { eq } from 'drizzle-orm';
-   import { users } from '../db/schema';
-   import { sessions } from '../db/schema';
-
-   export async function loginUser(email: string, password: string) {
-     const user = await db.select().from(users).where(eq(users.email, email));
+   export async function getCurrentUser(token: string) {
+     // 1. Cari session berdasarkan token
+     const session = await db.select().from(sessions).where(eq(sessions.token, token));
+     
+     if (session.length === 0) {
+       throw new Error('Unauthorized');
+     }
+     
+     // 2. Cari user berdasarkan userId dari session
+     const user = await db.select().from(users).where(eq(users.id, session[0].userId));
      
      if (user.length === 0) {
-       throw new Error('Email atau password salah');
+       throw new Error('Unauthorized');
      }
      
-     const isValid = await bcrypt.compare(password, user[0].password);
-     
-     if (!isValid) {
-       throw new Error('Email atau password salah');
-     }
-     
-     const token = crypto.randomUUID();
-     
-     await db.insert(sessions).values({
-       token,
-       userId: user[0].id,
-     });
-     
-     return { data: token };
+     // 3. Return data user (tanpa password)
+     return {
+       data: {
+         id: user[0].id,
+         name: user[0].name,
+         email: user[0].email,
+         created_at: user[0].createdAt,
+       }
+     };
    }
    ```
 
 ---
 
-### Tahap 3: Update Route Layer
+### Tahap 2: Update Route Layer
 
 1. **Buka file `src/routes/users-route.ts`**
    
 2. **Import service function**
    ```ts
-   import { loginUser } from '../services/users-service';
+   import { getCurrentUser } from '../services/users-service';
    ```
 
-3. **Tambahkan route POST /api/users/login ke existing usersRoute**
+3. **Tambahkan route GET /api/users/me ke existing usersRoute**
+   
+   Di Elysia, untuk mengakses headers gunakan parameter `headers`:
    ```ts
-   .post('/api/users/login', async ({ body }) => {
-     const { email, password } = body;
+   .get('/api/users/me', async ({ headers }) => {
+     // 1. Ambil header Authorization
+     const authHeader = headers.authorization;
      
+     // 2. Cek apakah header ada dan formatnya benar
+     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+       return { error: 'Unauthorized' };
+     }
+     
+     // 3. Extract token (hapus prefix "Bearer ")
+     const token = authHeader.substring(7);
+     
+     // 4. Panggil service
      try {
-       const result = await loginUser(email, password);
+       const result = await getCurrentUser(token);
        return result;
      } catch (error: any) {
-       if (error.message === 'Email atau password salah') {
-         return { error: 'Email atau password salah' };
+       if (error.message === 'Unauthorized') {
+         return { error: 'Unauthorized' };
        }
        return { error: 'Internal server error' };
      }
-   }, {
-     body: t.Object({
-       email: t.String({ format: 'email' }),
-       password: t.String({ minLength: 6 })
-     })
    })
    ```
 
 ---
 
-### Tahap 4: Testing
+### Tahap 3: Testing
 
-1. **Test login berhasil**
+1. **Login dulu untuk mendapatkan token**
    ```bash
    curl -X POST http://localhost:3000/api/users/login \
      -H "Content-Type: application/json" \
      -d '{"email":"ade@gmail.com","password":"rahasia"}'
    ```
-   Expected: `{"data":"<uuid-token>"}`
+   Expected: `{"data":"<token-uuid>"}`
+   
+   Simpan token tersebut.
 
-2. **Test email tidak terdaftar**
+2. **Test get current user dengan token valid**
    ```bash
-   curl -X POST http://localhost:3000/api/users/login \
-     -H "Content-Type: application/json" \
-     -d '{"email":"tidakada@gmail.com","password":"password"}'
+   curl -X GET http://localhost:3000/api/users/me \
+     -H "Authorization: Bearer <token-yang-didapat>"
    ```
-   Expected: `{"error":"Email atau password salah"}`
+   Expected: `{"data":{"id":1,"name":"ade","email":"ade@gmail.com","created_at":"..."}}`
 
-3. **Test password salah**
+3. **Test tanpa Authorization header**
    ```bash
-   curl -X POST http://localhost:3000/api/users/login \
-     -H "Content-Type: application/json" \
-     -d '{"email":"ade@gmail.com","password":"salah"}'
+   curl -X GET http://localhost:3000/api/users/me
    ```
-   Expected: `{"error":"Email atau password salah"}`
+   Expected: `{"error":"Unauthorized"}`
+
+4. **Test dengan token tidak valid**
+   ```bash
+   curl -X GET http://localhost:3000/api/users/me \
+     -H "Authorization: Bearer token-salah-123"
+   ```
+   Expected: `{"error":"Unauthorized"}`
+
+5. **Test dengan format header salah (tanpa Bearer)**
+   ```bash
+   curl -X GET http://localhost:3000/api/users/me \
+     -H "Authorization: token-yang-benar"
+   ```
+   Expected: `{"error":"Unauthorized"}`
 
 ---
 
 ## Catatan Penting
 
-1. **Gunakan bcrypt.compare()** untuk membandingkan password hash - jangan menggunakan === secara langsung
-2. **Gunakan crypto.randomUUID()** untuk menghasilkan token yang unik
-3. **Selalu simpan token baru** ke tabel sessions setiap kali user login (tidak perlu menghapus token lama)
-4. **Ikuti konvensi yang ada** - gunakan nama function, import style, dan pattern yang sama dengan kode yang sudah ada
-5. **Validasi input** - gunakan `t.Object` dari Elysia untuk validasi email format dan password minLength
+1. **Selalu gunakan Bearer prefix** - Authorization header harus formatnya `Bearer <token>`, bukan langsung token saja
+2. **Substring 7 karakter** - Untuk mengambil token setelah "Bearer ", gunakan `substring(7)` atau `slice(7)`
+3. **Jangan return password** - Pastikan tidak mengembalikan field `password` ke client
+4. **HTTP Status Code** - Gunakan 401 untuk Unauthorized
+5. **Cek null/undefined** - Pastikan authHeader tidak null sebelum memanggil `.startsWith()`
+6. **Ikuti konvensi** - Gunakan pattern yang sama dengan route yang sudah ada
 
 ---
 
 ## Files yang Perlu Diubah
 
-1. `src/db/schema.ts` - tambahkan definisi tabel sessions
-2. `src/services/users-service.ts` - tambahkan fungsi loginUser
-3. `src/routes/users-route.ts` - tambahkan route POST /api/users/login
+1. `src/services/users-service.ts` - tambahkan fungsi getCurrentUser
+2. `src/routes/users-route.ts` - tambahkan route GET /api/users/me
