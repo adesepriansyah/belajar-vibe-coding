@@ -46,12 +46,19 @@ export const usersRoute = new Elysia()
       password: t.String({ minLength: 6 })
     })
   })
-  .get('/api/users/me', async ({ headers }) => {
-    const token = extractToken(headers.authorization);
-    
-    if (!token) {
-      return { error: 'Unauthorized' };
+  .guard({
+    beforeHandle: ({ headers, set }) => {
+      const authHeader = headers.authorization;
+      const token = extractToken(authHeader);
+      
+      if (!token) {
+        set.status = 401;
+        return { error: 'Unauthorized' };
+      }
     }
+  })
+  .get('/api/users/me', async ({ headers }) => {
+    const token = extractToken(headers.authorization)!;
     
     try {
       const result = await getCurrentUser(token);
@@ -64,11 +71,7 @@ export const usersRoute = new Elysia()
     }
   })
   .delete('/api/users/logout', async ({ headers }) => {
-    const token = extractToken(headers.authorization);
-    
-    if (!token) {
-      return { error: 'Unauthorized' };
-    }
+    const token = extractToken(headers.authorization)!;
     
     try {
       const result = await logoutUser(token);
