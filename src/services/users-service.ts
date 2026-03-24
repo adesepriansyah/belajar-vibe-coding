@@ -43,3 +43,26 @@ export async function loginUser(email: string, password: string) {
   
   return { data: token };
 }
+
+export async function getCurrentUser(token: string) {
+  const session = await db.select().from(sessions).where(eq(sessions.token, token));
+  
+  if (session.length === 0) {
+    throw new Error('Unauthorized');
+  }
+  
+  const user = await db.select().from(users).where(eq(users.id, session[0].userId));
+  
+  if (user.length === 0) {
+    throw new Error('Unauthorized');
+  }
+  
+  return {
+    data: {
+      id: user[0].id,
+      name: user[0].name,
+      email: user[0].email,
+      created_at: user[0].createdAt,
+    },
+  };
+}
