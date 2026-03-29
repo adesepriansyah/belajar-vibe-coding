@@ -76,7 +76,31 @@ Rute komunikasi klien dan sistem (*server listening default* di `http://localhos
 | `GET` | `/api/users/me` | Autorisasi identitas otentik yang spesifik | `Authorization: Bearer <token>` | - |
 | `DELETE`| `/api/users/logout`| Pemutusan sesi, merusak validasi Token | `Authorization: Bearer <token>` | - |
 
+### 🔄 Alur Registrasi Pengguna
+Berikut adalah visualisasi diagram alir (*Flowchart*) dari proses pendaftaran (*Registration*) pengguna baru:
+
+```mermaid
+flowchart TD
+    Start([Mulai Akses: POST /api/users]) --> Input[/Input: name, email, password/]
+    
+    Input --> Validasi{Elysia Validation}
+    
+    Validasi -- "Invalid (Terlalu panjang/Format salah)" --> Tolak1[Tolak: HTTP 422 Unprocessable Entity]
+    Tolak1 --> SelesaiGagal([Selesai / Gagal])
+    
+    Validasi -- "Valid" --> CekDB{Cek Database MySQL}
+    
+    CekDB -- "Email Sudah Terdaftar" --> Tolak2[Tolak: HTTP Error Message]
+    Tolak2 --> SelesaiGagal
+    
+    CekDB -- "Email Belum Terdaftar" --> Hash[Proses Hash Password: bcrypt.hash]
+    Hash --> Simpan[(Simpan ke Tabel Users)]
+    Simpan --> Sukses[Berhasil: HTTP 200 OK]
+    Sukses --> SelesaiBerhasil([Selesai / Berhasil])
+```
+
 ---
+
 
 ## ⚙️ Cara Set Up Project
 
