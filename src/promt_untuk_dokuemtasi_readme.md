@@ -1,0 +1,1 @@
+update README.md, jelaskaan tentang aplikasi ini , artsitektur seperti folder dan penamaan file atau struktur file , jelaskan juga API yang tersedia , jelaskan juga schema database yang ada , dan cara set up project , technology stack yang di gunakan libary yang di gunakan , cara run apliaski , cara test aplikasi 
