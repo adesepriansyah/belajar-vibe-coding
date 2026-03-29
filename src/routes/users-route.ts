@@ -26,7 +26,12 @@ export const usersRoute = new Elysia()
       name: t.String({ minLength: 1, maxLength: 255 }),
       email: t.String({ format: 'email', maxLength: 255 }),
       password: t.String({ minLength: 6, maxLength: 255 })
-    })
+    }),
+    detail: {
+      tags: ['Authentication'],
+      summary: 'Register User',
+      description: 'Mendaftarkan akun baru ke sistem dengan memverifikasi panjang karakter dan keunikan email'
+    }
   })
   .post('/api/users/login', async ({ body }) => {
     const { email, password } = body;
@@ -44,7 +49,12 @@ export const usersRoute = new Elysia()
     body: t.Object({
       email: t.String({ format: 'email', maxLength: 255 }),
       password: t.String({ minLength: 6, maxLength: 255 })
-    })
+    }),
+    detail: {
+      tags: ['Authentication'],
+      summary: 'Login User',
+      description: 'Otentikasi kredensial pengguna dan mengembalikan token sesi'
+    }
   })
   .guard({
     beforeHandle: ({ headers, set }) => {
@@ -69,6 +79,12 @@ export const usersRoute = new Elysia()
       }
       return { error: 'Internal server error' };
     }
+  }, {
+    detail: {
+      tags: ['Authentication'],
+      summary: 'Get Current User Profile',
+      description: 'Mengambil data profil pengguna saat ini berdasarkan token otentikasi Bearer'
+    }
   })
   .delete('/api/users/logout', async ({ headers }) => {
     const token = extractToken(headers.authorization)!;
@@ -81,5 +97,11 @@ export const usersRoute = new Elysia()
         return { error: 'Unauthorized' };
       }
       return { error: 'Internal server error' };
+    }
+  }, {
+    detail: {
+      tags: ['Authentication'],
+      summary: 'Logout User',
+      description: 'Keluar dari akun dan menghancurkan token otentikasi dari sistem'
     }
   });
