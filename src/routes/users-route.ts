@@ -27,6 +27,10 @@ export const usersRoute = new Elysia()
       email: t.String({ format: 'email', maxLength: 255 }),
       password: t.String({ minLength: 6, maxLength: 255 })
     }),
+    response: t.Object({
+      data: t.Optional(t.String()),
+      error: t.Optional(t.String())
+    }),
     detail: {
       tags: ['Authentication'],
       summary: 'Register User',
@@ -49,6 +53,10 @@ export const usersRoute = new Elysia()
     body: t.Object({
       email: t.String({ format: 'email', maxLength: 255 }),
       password: t.String({ minLength: 6, maxLength: 255 })
+    }),
+    response: t.Object({
+      data: t.Optional(t.String()),
+      error: t.Optional(t.String())
     }),
     detail: {
       tags: ['Authentication'],
@@ -80,6 +88,15 @@ export const usersRoute = new Elysia()
       return { error: 'Internal server error' };
     }
   }, {
+    response: t.Object({
+      data: t.Optional(t.Object({
+        id: t.Number(),
+        name: t.String(),
+        email: t.String(),
+        created_at: t.Any()
+      })),
+      error: t.Optional(t.String())
+    }),
     detail: {
       tags: ['Authentication'],
       summary: 'Get Current User Profile',
@@ -99,6 +116,10 @@ export const usersRoute = new Elysia()
       return { error: 'Internal server error' };
     }
   }, {
+    response: t.Object({
+      data: t.Optional(t.String()),
+      error: t.Optional(t.String())
+    }),
     detail: {
       tags: ['Authentication'],
       summary: 'Logout User',
