@@ -1,204 +1,102 @@
-# Issue: Get Current User API
+# Issue: Implementasi Dokumentasi API Menggunakan Swagger
 
 ## Deskripsi
-Membuat API untuk mendapatkan data user yang sedang login berdasarkan token di Authorization header.
+Tugas ini bertujuan untuk menambahkan pustaka dan antarmuka interaktif **Swagger (OpenAPI)** ke dalam proyek. 
+Swagger memungkinkan *developer* lain atau tim komponen antarmuka pengguna (*Frontend*) membaca, memahami struktur input yang diperlukan, hingga mencoba langsung (testing) respon API tanpa keluar dari aplikasi *browser*.
+
+Mengingat proyek kita berbasis **ElysiaJS**, ada pustaka resmi yang dapat mengubah schema (`t.Object`) Route menjadi halaman Swagger UI mutakhir secara mulus tanpa banyak kendala.
 
 ---
 
-## Spesifikasi
+## 📋 Tahapan Implementasi (Target: Junior Programmer / AI Assistant)
 
-### API Endpoint
+Tugas Anda adalah membaca setiap langkah di bawah dan memprogramnya bertahap.
 
-**Endpoint**: `GET /api/users/me`
+### Langkah 1: Instalasi Pustaka
+ElysiaJS memisahkan pustaka Swagger untuk efektivitas kinerja inti.
+Tugas pertama, jalankan perintah instalasi berikut di *terminal*:
 
-**Headers**:
-```
-Authorization: Bearer <token>
-```
-
-**Catatan**: 
-- Token adalah UUID yang tersimpan di tabel `sessions`
-- Format header harus menggunakan prefix `Bearer ` (dengan spasi setelah Bearer)
-- Token didapatkan dari response login: `{"data":"<uuid-token>"}`
-
-**Response Success** (HTTP 200):
-```json
-{
-  "data": {
-    "id": 1,
-    "name": "ade",
-    "email": "ade@gmail.com",
-    "created_at": "2024-01-15 10:30:00"
-  }
-}
+```bash
+bun add @elysiajs/swagger
 ```
 
-**Response Error** - Token tidak valid/tidak ditemukan (HTTP 401):
-```json
-{
-  "error": "Unauthorized"
-}
+### Langkah 2: Aktivasi Plugin Swagger di Server Utama
+**Target File:** `src/index.ts`
+
+Tambahkan pemanggilan *use* untuk me-registrasikan *plugin* swagger ke dalam struktur *chaining* dari framework Elysia.
+
+**Kode Sebelum:**
+```typescript
+import { Elysia } from 'elysia';
+import { usersRoute } from './routes/users-route';
+
+const app = new Elysia()
+  .use(usersRoute)
+  ...
 ```
 
----
+**Kode Sesudah yang Diharapkan:**
+```typescript
+import { Elysia } from 'elysia';
+import { swagger } from '@elysiajs/swagger'; // <- Tambahan Import
+import { usersRoute } from './routes/users-route';
 
-## Struktur Folder
-
+const app = new Elysia()
+  // <- Tambahan Plugin Swagger
+  .use(swagger({
+    documentation: {
+        info: {
+            title: 'Belajar Vibe Coding API Documentation',
+            version: '1.0.0'
+        }
+    }
+  }))
+  .use(usersRoute)
+  ...
 ```
-src/
-├── routes/
-│   └── users-route.ts
-└── services/
-    └── users-service.ts
+
+### Langkah 3: Menambahkan Metadata Deskripsi Per-Endpoint
+**Target File:** `src/routes/users-route.ts`
+
+Plugin `@elysiajs/swagger` secara otomatis mendeteksi objek validasi seperti `t.Object` untuk mengkompilasi dokumentasinya. Namun agar API lebih mudah dibaca, **kita perlu memberikan penjelasan yang sangat eksplisit** untuk tiap Endpoint.
+
+Di ElysiaJS, informasi tambahan disisipkan memakai properti `detail: { ... }` pada *object handler route* milik Elysia.
+
+**Contoh Adaptasi untuk Endpoint Pertama (`POST /api/users`):**
+```typescript
+  .post('/api/users', async ({ body }) => { 
+     // .. Isi Logika Service
+  }, {
+    body: t.Object({
+       ... // (aturan dari endpoint yang ada, jangan ikut dibuang)
+    }),
+    // TAMBAHKAN IDENTIFIER DETAIL SEPERTI INI:
+    detail: {
+      tags: ['App Authentication'],
+      summary: 'Endpoint Registrasi User',
+      description: 'Mencatat pengguna baru ke database setelah divalidasi tidak memuat karakter lebih dari 255 serta mengunci keamanan dengan Hash bcrypt.'
+    }
+  })
 ```
 
-**Catatan**: File `users-route.ts` dan `users-service.ts` sudah ada. Tambahkan function baru, jangan overwrite file yang sudah ada.
+**Tugas Eksekusi:**
+Masukkan konfigurasi `detail: { tags: string[], summary: string, description: string }` ke dalam **KEEMPAT (4)** endpoint yang tersedia secara berurutan:
+1. `POST /api/users` (Deksripsinya tentang proses register *Auth*)
+2. `POST /api/users/login` (Deskripsinya mencatat verifikasi kredensial)
+3. `GET /api/users/me` (Deskripsinya melihat data berbekal token)
+4. `DELETE /api/users/logout` (Deskripsinya mencabut keandalan *sesi login*)
+
+*(Pastikan grup string parameter `tags` milik keempat endpoint itu disamakan, contoh: `['Authentication']`, agar menumpuk / grouping menjadi rapi di UI).*
+
+### Langkah 4: Validasi & Pengujian Manual (Testing)
+1. Setelah modifikasi selesai, pastikan server jalan melalui `bun run dev`
+2. Kunjungi `http://localhost:3000/swagger` langsung dari *Google Chrome/Safari* dsb.
+3. Apakah aplikasi menyuguhkan halaman modern dari *Swagger UI* berserta grup API?
+4. Cobalah mengisi data di skema **Registration** dari fitur "*Try it out*" untuk membuktikan endpoint bereaksi normal.
 
 ---
 
-## Tahapan Implementasi
-
-### Tahap 1: Update Service Layer
-
-1. **Buka file `src/services/users-service.ts`**
-   
-2. **Import module yang dibutuhkan**
-   ```ts
-   import { eq } from 'drizzle-orm';
-   import { sessions, users } from '../db/schema';
-   ```
-
-3. **Buat fungsi getCurrentUser**
-   - Terima parameter: `token` (string)
-   - Cari session di tabel `sessions` berdasarkan token
-   - Jika tidak ditemukan, throw error "Unauthorized"
-   - Jika ditemukan, ambil user berdasarkan `userId` dari session
-   - Return data user (id, name, email, createdAt)
-
-4. **Contoh struktur fungsi**:
-   ```ts
-   export async function getCurrentUser(token: string) {
-     // 1. Cari session berdasarkan token
-     const session = await db.select().from(sessions).where(eq(sessions.token, token));
-     
-     if (session.length === 0) {
-       throw new Error('Unauthorized');
-     }
-     
-     // 2. Cari user berdasarkan userId dari session
-     const user = await db.select().from(users).where(eq(users.id, session[0].userId));
-     
-     if (user.length === 0) {
-       throw new Error('Unauthorized');
-     }
-     
-     // 3. Return data user (tanpa password)
-     return {
-       data: {
-         id: user[0].id,
-         name: user[0].name,
-         email: user[0].email,
-         created_at: user[0].createdAt,
-       }
-     };
-   }
-   ```
-
----
-
-### Tahap 2: Update Route Layer
-
-1. **Buka file `src/routes/users-route.ts`**
-   
-2. **Import service function**
-   ```ts
-   import { getCurrentUser } from '../services/users-service';
-   ```
-
-3. **Tambahkan route GET /api/users/me ke existing usersRoute**
-   
-   Di Elysia, untuk mengakses headers gunakan parameter `headers`:
-   ```ts
-   .get('/api/users/me', async ({ headers }) => {
-     // 1. Ambil header Authorization
-     const authHeader = headers.authorization;
-     
-     // 2. Cek apakah header ada dan formatnya benar
-     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-       return { error: 'Unauthorized' };
-     }
-     
-     // 3. Extract token (hapus prefix "Bearer ")
-     const token = authHeader.substring(7);
-     
-     // 4. Panggil service
-     try {
-       const result = await getCurrentUser(token);
-       return result;
-     } catch (error: any) {
-       if (error.message === 'Unauthorized') {
-         return { error: 'Unauthorized' };
-       }
-       return { error: 'Internal server error' };
-     }
-   })
-   ```
-
----
-
-### Tahap 3: Testing
-
-1. **Login dulu untuk mendapatkan token**
-   ```bash
-   curl -X POST http://localhost:3000/api/users/login \
-     -H "Content-Type: application/json" \
-     -d '{"email":"ade@gmail.com","password":"rahasia"}'
-   ```
-   Expected: `{"data":"<token-uuid>"}`
-   
-   Simpan token tersebut.
-
-2. **Test get current user dengan token valid**
-   ```bash
-   curl -X GET http://localhost:3000/api/users/me \
-     -H "Authorization: Bearer <token-yang-didapat>"
-   ```
-   Expected: `{"data":{"id":1,"name":"ade","email":"ade@gmail.com","created_at":"..."}}`
-
-3. **Test tanpa Authorization header**
-   ```bash
-   curl -X GET http://localhost:3000/api/users/me
-   ```
-   Expected: `{"error":"Unauthorized"}`
-
-4. **Test dengan token tidak valid**
-   ```bash
-   curl -X GET http://localhost:3000/api/users/me \
-     -H "Authorization: Bearer token-salah-123"
-   ```
-   Expected: `{"error":"Unauthorized"}`
-
-5. **Test dengan format header salah (tanpa Bearer)**
-   ```bash
-   curl -X GET http://localhost:3000/api/users/me \
-     -H "Authorization: token-yang-benar"
-   ```
-   Expected: `{"error":"Unauthorized"}`
-
----
-
-## Catatan Penting
-
-1. **Selalu gunakan Bearer prefix** - Authorization header harus formatnya `Bearer <token>`, bukan langsung token saja
-2. **Substring 7 karakter** - Untuk mengambil token setelah "Bearer ", gunakan `substring(7)` atau `slice(7)`
-3. **Jangan return password** - Pastikan tidak mengembalikan field `password` ke client
-4. **HTTP Status Code** - Gunakan 401 untuk Unauthorized
-5. **Cek null/undefined** - Pastikan authHeader tidak null sebelum memanggil `.startsWith()`
-6. **Ikuti konvensi** - Gunakan pattern yang sama dengan route yang sudah ada
-
----
-
-## Files yang Perlu Diubah
-
-1. `src/services/users-service.ts` - tambahkan fungsi getCurrentUser
-2. `src/routes/users-route.ts` - tambahkan route GET /api/users/me
+## ✅ Kriteria Penerimaan (*Acceptance Criteria*)
+- File `package.json` memuat referensi paket `@elysiajs/swagger`.
+- Rute `/swagger` bisa diakses dari sisi luar (klien) dan tampil sempurna.
+- Semua titik-titik (Endpoint Auth) berada dalam suatu kotak (*grouping*) yang dinamakan 'Authentication' sesuai instruksi tag.
